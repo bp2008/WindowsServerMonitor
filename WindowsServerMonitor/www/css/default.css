@@ -1,0 +1,120 @@
+﻿.navbar
+{
+	margin-bottom: 0px;
+}
+
+.baseContainer
+{
+	padding: 8px;
+}
+
+p.padded-info
+{
+	padding: 15px;
+}
+
+span.bytes_B
+{
+}
+
+span.bytes_KB
+{
+	background-color: rgba(255, 255, 0, 0.28);
+}
+
+span.bytes_MB
+{
+	background-color: rgba(255, 138, 0, 0.28);
+}
+
+span.bytes_GB, span.bytes_TB, span.bytes_PB, span.bytes_EB, span.bytes_ZB, span.bytes_YB
+{
+	background-color: #FF0000;
+	color: #FFFFFF;
+}
+
+span.bits_low
+{
+}
+
+span.bits_med
+{
+	background-color: rgba(255, 255, 0, 0.28);
+}
+
+span.bits_high
+{
+	background-color: rgba(255, 138, 0, 0.28);
+}
+
+span.bits_veryhigh
+{
+	background-color: rgba(255, 0, 0, 0.28);
+}
+
+span.bits_extreme
+{
+	background-color: #FF0000;
+	color: #FFFFFF;
+}
+
+.pcCat, .pcCounter
+{
+	background-color: #FFFFFF;
+	border: 1px solid #AAAAAA;
+	border-radius: 5px;
+	padding: 5px 10px;
+	margin: 10px 0px;
+	cursor: pointer;
+}
+
+.pcCatName
+{
+}
+
+.pcCatHelp, .pcCounterHelp
+{
+	color: #888888;
+}
+
+.pcCatDetails
+{
+	margin-left: 30px;
+	border-left: 2px solid #00e800;
+	padding-left: 10px;
+}
+
+.pcInstances
+{
+	background-color: #F6F6F6;
+}
+
+.pcInstancesHeader, .pcCountersHeader
+{
+	font-weight: bold;
+	margin-top: 10px;
+}
+
+.pcInstanceName
+{
+	margin-left: 10px;
+	padding: 0px 3px;
+	border: 1px solid rgba(0,0,0,0.5);
+	display: inline-block;
+	white-space: pre-wrap;
+	font-family: Consolas, monospace;
+}
+
+.pcCounterName
+{
+	padding: 0px 3px;
+	border: 1px solid rgba(0,0,0,0.33);
+	display: inline-block;
+	white-space: pre-wrap;
+	font-family: Consolas, monospace;
+}
+
+.pcCounter
+{
+	border-radius: 0px;
+}

@@ -50,6 +50,24 @@
 			{
 				if (response.result === "success")
 				{
+					{ // Build error messages array
+						$("#titleExtension").text(": " + response.machineName);
+						var sb = [];
+						sb.push('<div class="errMsgs">');
+						for (var i = 0; i < response.collections.length; i++)
+						{
+							var c = response.collections[i];
+							if (c.error)
+							{
+								sb.push('<div class="errMsg">');
+								sb.push(EscapeHTML(c.error));
+								sb.push('</div>');
+							}
+						}
+						sb.push('</div>');
+					}
+					$("#DataMessages").html(sb.join(''));
+
 					UpdateGraphableData(response.collections);
 					UpdateChart();
 
@@ -130,7 +148,7 @@
 		var data = FindGraphData(collection.name);
 		if (data === null)
 			return;
-		var maxAge = 600000; // 10 minutes in milliseconds
+		var maxAge = 60000 * 60 * 24; // 1 day in milliseconds
 		var newestAdded = 0;
 		for (var i = collection.values.length - 1; i >= 0; i--)
 		{

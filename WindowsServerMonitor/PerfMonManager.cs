@@ -14,6 +14,10 @@ namespace WindowsServerMonitor
 	public class PerfMonManager
 	{
 		public readonly PerfMonSpec spec;
+		/// <summary>
+		/// A public error property that is used to report recurring errors and reduce log spam.
+		/// </summary>
+		public string Error { get; private set; }
 		private Thread monitorThread;
 		/// <summary>
 		/// A doubly-linked list (not thread safe!) containing performance counter values where the first value is the newest and each next value gets progressively older.
@@ -68,7 +72,7 @@ namespace WindowsServerMonitor
 						string instanceName = spec.GetInstanceName();
 						if (instanceName == null && spec.processFinder != null)
 						{
-							Logger.Info("Failed to find instance name for monitor " + spec.GetLabel());
+							Error = "Failed to find Process instance name for monitor \"" + spec.GetLabel() + "\"";
 							Thread.Sleep(Math.Max(intervalMs, 10000));
 							continue;
 						}
@@ -91,6 +95,8 @@ namespace WindowsServerMonitor
 										values.RemoveLast();
 								}
 
+								Error = "";
+
 								Thread.Sleep(intervalMs);
 							}
 						}
@@ -98,15 +104,17 @@ namespace WindowsServerMonitor
 					catch (ThreadAbortException) { }
 					catch (Exception ex)
 					{
-						Logger.Debug(ex);
+						Error = "Data collection error for monitor \"" + spec.GetLabel() + "\": " + ex.ToString();
 					}
 				}
 			}
 			catch (ThreadAbortException) { }
 			catch (Exception ex)
 			{
+				Error = "Data collection for monitor \"" + spec.GetLabel() + "\" has ended: " + ex.ToString();
 				Logger.Debug(ex);
 			}
+			Error = "Data collection has ended.";
 		}
 		/// <summary>
 		/// Returns all records.

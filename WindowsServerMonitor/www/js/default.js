@@ -3,6 +3,7 @@
 	$(function ()
 	{
 		LoadInitialData();
+		$("#DataGraph").on('click', GraphClicked);
 	});
 	var dataLoadStarted = false;
 	var lastTime = 0;
@@ -83,6 +84,10 @@
 		}
 		else
 			RefreshDataAfterTimeout();
+	}
+	function GraphClicked(e)
+	{
+		$("#SaveTooltip").html(lastTooltipHtml);
 	}
 	///////////////////////////////////////////////////////////////
 	// Chart //////////////////////////////////////////////////////
@@ -182,6 +187,7 @@
 				series: graphableData
 			});
 	}
+	var lastTooltipHtml = "";
 	/**
 	 * Generate HTML for a tooltip for the current position in the graph.
 	 * @param {any} params parameters from eCharts
@@ -191,6 +197,7 @@
 	{
 		var time = params[0].value[0].getTime();
 		var sb = new Array();
+		sb.push('<div>' + params[0].value[0].toDateString() + ', ' + params[0].value[0].toLocaleTimeString() + '</div>');
 		for (var s = 0; s < graphableData.length; s++)
 		{
 			var series = graphableData[s];
@@ -200,7 +207,7 @@
 			if (idx < series.data.length)
 				sb.push('<div>' + series.name + ': ' + series.data[idx].value[1].toFixedNoE(2) + '</div>');
 		}
-		return sb.join('');
+		return lastTooltipHtml = sb.join('');
 	}
 	function RenderChart()
 	{

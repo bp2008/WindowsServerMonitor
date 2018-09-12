@@ -24,6 +24,7 @@ namespace WindowsServerMonitor
 		{
 			settings.Load(SettingsPath);
 			settings.SaveIfNoExist(SettingsPath);
+			SimpleHttpLogger.RegisterLogger(Logger.httpLogger, false);
 		}
 		public WebServer() : base(settings.webPort)
 		{
@@ -79,7 +80,9 @@ namespace WindowsServerMonitor
 					html = html.Replace("%%RND%%", rnd.ToString());
 
 					byte[] data = Encoding.UTF8.GetBytes(html);
-					p.writeSuccess(Mime.GetMimeType(fi.Extension), data.Length);
+					if (!p.GetBoolParam("nocompress"))
+						p.CompressResponseIfCompatible();
+					p.writeSuccess(Mime.GetMimeType(fi.Extension));
 					p.outputStream.Flush();
 					p.tcpStream.Write(data, 0, data.Length);
 					p.tcpStream.Flush();
@@ -94,7 +97,9 @@ namespace WindowsServerMonitor
 						p.writeSuccess(mime, -1, "304 Not Modified");
 						return;
 					}
-					p.writeSuccess(mime, fi.Length, additionalHeaders: GetCacheLastModifiedHeaders(TimeSpan.FromHours(1), fi.LastWriteTimeUtc));
+					if (!p.GetBoolParam("nocompress"))
+						p.CompressResponseIfCompatible();
+					p.writeSuccess(mime, additionalHeaders: GetCacheLastModifiedHeaders(TimeSpan.FromHours(1), fi.LastWriteTimeUtc));
 					p.outputStream.Flush();
 					using (FileStream fs = fi.OpenRead())
 					{
@@ -172,7 +177,8 @@ namespace WindowsServerMonitor
 
 					}
 				}
-				p.CompressResponseIfCompatible();
+				if (!p.GetBoolParam("nocompress"))
+					p.CompressResponseIfCompatible();
 				p.writeSuccess("application/json");
 				if (apiResponse == null)
 					apiResponse = new JSAPI.APIResponse("Response was null, so this response was generated instead.");

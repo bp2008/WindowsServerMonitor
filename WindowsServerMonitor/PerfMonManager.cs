@@ -120,11 +120,11 @@ namespace WindowsServerMonitor
 		/// Returns all records.
 		/// </summary>
 		/// <returns></returns>
-		public IEnumerable<PerfMonValue> GetValues()
+		public List<PerfMonValue> GetValues()
 		{
 			lock (this)
 			{
-				return values;
+				return values.ToList();
 			}
 		}
 		/// <summary>

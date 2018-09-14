@@ -92,14 +92,22 @@
 	///////////////////////////////////////////////////////////////
 	// Chart //////////////////////////////////////////////////////
 	///////////////////////////////////////////////////////////////
+	var reduceData = true;
+	this.cbReduce_Changed = function(e)
+	{
+		reduceData = $("#cbReduce").is(":checked");
+	}
 	var myChart;
 	var graphableData;
+	var sourceData;
 	function InitializeGraphableData(response)
 	{
+		sourceData = new Array();
 		graphableData = new Array();
 		for (var i = 0; i < response.collections.length; i++)
 		{
 			var collection = response.collections[i];
+			sourceData.push({ name: collection.name, data: new Array() });
 			graphableData.push(GetSeries(collection.name));
 		}
 		UpdateGraphableData(response.collections);
@@ -148,9 +156,16 @@
 				return graphableData[i].data;
 		return null;
 	}
+	function FindSourceData(name)
+	{
+		for (var i = 0; i < sourceData.length; i++)
+			if (sourceData[i].name === name)
+				return sourceData[i].data;
+		return null;
+	}
 	function UpdateDataArray(collection)
 	{
-		var data = FindGraphData(collection.name);
+		var data = FindSourceData(collection.name);
 		if (data === null)
 			return;
 		var maxAge = 60000 * 60 * 24; // 1 day in milliseconds
@@ -158,34 +173,39 @@
 		for (var i = collection.values.length - 1; i >= 0; i--)
 		{
 			var record = collection.values[i];
-			var x = new Date(record.Time);
+			var x = record.Time;
 			var y = record.Value * collection.scale;
-			data.push({ name: x.toString(), value: [x, y] });
+			data.push([x, y]);
 			if (record.Time > newestAdded)
 				newestAdded = lastTime = record.Time;
 		}
-		if (newestAdded !== 0)
+		// Clean up records that are too old
+		var ageCutoff = Date.now() - maxAge;
+		var removeCount = 0;
+		for (var n = 0; n < data.length; n++)
 		{
-			var ageCutoff = newestAdded - maxAge;
-			var removeCount = 0;
-			for (var n = 0; n < data.length; n++)
-			{
-				if (data[n].value[0] < ageCutoff)
-					removeCount++;
-				else
-					break;
-			}
-			if (removeCount > 0)
-				data.splice(0, removeCount);
+			if (data[n][0] < ageCutoff)
+				removeCount++;
+			else
+				break;
 		}
+		if (removeCount > 0)
+			data.splice(0, removeCount);
 	}
 	function UpdateChart()
 	{
+		var updSeries = GetAllUpdatedSeries();
 		myChart.setOption(
 			{
-				animation: true,
-				series: graphableData
+				animation: false,
+				series: updSeries
 			});
+	}
+	function GetAllUpdatedSeries()
+	{
+		for (var i = 0; i < graphableData.length; i++)
+			graphableData[i].data = ReduceDataSet(sourceData[i].name, sourceData[i].data);
+		return graphableData;
 	}
 	var lastTooltipHtml = "";
 	/**
@@ -195,17 +215,17 @@
 	 */
 	function GetTooltip(params)
 	{
-		var time = params[0].value[0].getTime();
+		var time = params[0].value[0];
 		var sb = new Array();
-		sb.push('<div>' + params[0].value[0].toDateString() + ', ' + params[0].value[0].toLocaleTimeString() + '</div>');
-		for (var s = 0; s < graphableData.length; s++)
+		sb.push('<div>' + new Date(time).toDateString() + ', ' + new Date(time).toLocaleTimeString() + '</div>');
+		for (var s = 0; s < sourceData.length; s++)
 		{
-			var series = graphableData[s];
+			var series = sourceData[s];
 			var idx = binarySearch(series.data, time);
 			if (idx < 0)
 				idx *= -1; // This index will be the nearest match.
 			if (idx < series.data.length)
-				sb.push('<div>' + series.name + ': ' + series.data[idx].value[1].toFixedNoE(2) + '</div>');
+				sb.push('<div>' + series.name + ': ' + series.data[idx][1].toFixedNoE(2) + '</div>');
 		}
 		return lastTooltipHtml = sb.join('');
 	}
@@ -250,7 +270,7 @@
 			legend: {
 				orient: 'horizontal'
 			},
-			series: graphableData,
+			series: GetAllUpdatedSeries(),
 			animation: false
 		};
 
@@ -606,13 +626,13 @@
 		{
 			guess = Math.floor((min + max) / 2);
 
-			if (list[guess].value[0].getTime() === item)
+			if (list[guess][0] === item)
 			{
 				return guess;
 			}
 			else
 			{
-				if (list[guess].value[0].getTime() < item)
+				if (list[guess][0] < item)
 				{
 					min = guess + 1;
 				}
@@ -624,6 +644,59 @@
 		}
 
 		return -1 * guess;
+	}
+	function ReduceDataSet(name, data)
+	{
+		if (!reduceData || !data || data.length === 0)
+			return data;
+		var arr = [];
+		var cutoffPoints = [{ cutoff: 7200000, sectionSize: 60000 },
+		{ cutoff: 3600000, sectionSize: 30000 },
+		{ cutoff: 1800000, sectionSize: 4000 },
+		{ cutoff: 900000, sectionSize: 2000 }];
+		var newestTime = data[data.length - 1][0];
+		// 1:1 all data points for minutes 0-15 (900 points)
+		// 1:2 data points for 15-30 (450 points)
+		// 1:4 data points for the next 30-60 minutes (450 points)
+		// 1:60 data points for everything after
+		for (var i = 0; i < data.length; i++)
+		{
+			var record = data[i];
+			var startTime = record[0];
+			var remainingTime = newestTime - startTime;
+			var myCutoff = null;
+			for (var c = 0; c < cutoffPoints.length; c++)
+			{
+				if (remainingTime > cutoffPoints[c].cutoff)
+				{
+					myCutoff = cutoffPoints[c];
+					//console.log(name, myCutoff.cutoff);
+					break;
+				}
+			}
+			if (myCutoff)
+			{
+				var endSectionAt = (Math.floor(data[i][0] / myCutoff.sectionSize) + 1) * myCutoff.sectionSize;
+				var total = data[i][1];
+				var count = 1;
+				while (i + 1 < data.length && data[i + 1][0] < endSectionAt)
+				{
+					// This is reached for every element belonging to the same section.
+					total += data[++i][1];
+					count++;
+				}
+				var avg = total / count;
+				var endTime = data[i][0];
+				var middleTime = Math.round(startTime + ((endTime - startTime) / 2));
+				arr.push([middleTime, avg]);
+			}
+			else
+			{
+				arr.push(record);
+			}
+		}
+		//console.log(name, arr.length);
+		return arr;
 	}
 	Number.prototype.toFixedNoE = function (digits)
 	{

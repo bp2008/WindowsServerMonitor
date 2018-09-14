@@ -122,6 +122,7 @@ span.bits_extreme
 #DataMessages
 {
 	margin-top: 10px;
+	margin-left: 60px;
 }
 
 #SaveTooltip
@@ -131,4 +132,9 @@ span.bits_extreme
 	padding: 5px;
 	color: #FFFFFF;
 	display: inline-block;
+	margin-left: 60px;
+}
+#cbReduceWrapper
+{
+	margin-left: 60px;
 }

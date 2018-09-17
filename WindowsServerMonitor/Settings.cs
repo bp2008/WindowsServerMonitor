@@ -180,7 +180,7 @@ namespace WindowsServerMonitor
 						process.EnableRaisingEvents = true;
 						process.Exited += Process_Exited;
 						instanceName = Util.GetProcessInstanceName(process);
-						Logger.Info("Process " + process.Id + " instance name is " + instanceName);
+						//Logger.Info("Process " + process.Id + " instance name is " + instanceName);
 					}
 				}
 				return instanceName;

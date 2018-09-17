@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using BPUtil;
+using Microsoft.Win32;
 
 namespace WindowsServerMonitor
 {
@@ -119,19 +120,7 @@ namespace WindowsServerMonitor
 		public string GetInstanceName()
 		{
 			if (processFinder != null)
-			{
-				Process[] processes = Process.GetProcessesByName(processFinder.name);
-				if (!string.IsNullOrEmpty(processFinder.userNameRegex))
-				{
-					processes = processes.Where(p =>
-					{
-						string owner = ProcessHelper.GetUserWhichOwnsProcess(p.Id);
-						return Regex.IsMatch(owner, processFinder.userNameRegex);
-					}).ToArray();
-				}
-				if (processes.Length > 0)
-					return Util.GetProcessInstanceName(processes[0].Id);
-			}
+				return processFinder.GetProcessInstanceName();
 			return instanceName;
 		}
 
@@ -164,6 +153,106 @@ namespace WindowsServerMonitor
 		{
 			this.name = name;
 			this.userNameRegex = userNameRegex;
+		}
+
+		private object instanceNameLock = new object();
+		private string instanceName = null;
+		private Process process;
+		public string GetProcessInstanceName()
+		{
+			PerfProcRegistryMod.DoMod();
+			lock (instanceNameLock)
+			{
+				if (instanceName == null)
+				{
+					Process[] processes = Process.GetProcessesByName(name);
+					if (!string.IsNullOrEmpty(userNameRegex))
+					{
+						processes = processes.Where(p =>
+						{
+							string owner = ProcessHelper.GetUserWhichOwnsProcess(p.Id);
+							return Regex.IsMatch(owner, userNameRegex);
+						}).ToArray();
+					}
+					if (processes.Length > 0)
+					{
+						process = processes[0];
+						process.EnableRaisingEvents = true;
+						process.Exited += Process_Exited;
+						instanceName = Util.GetProcessInstanceName(process);
+						Logger.Info("Process " + process.Id + " instance name is " + instanceName);
+					}
+				}
+				return instanceName;
+			}
+		}
+
+		private void Process_Exited(object sender, EventArgs e)
+		{
+			lock (instanceNameLock)
+			{
+				instanceName = null;
+				if (sender != null && sender is Process)
+					((Process)sender).Dispose();
+			}
+		}
+	}
+	/// <summary>
+	/// Performs the registry modification described here: https://support.microsoft.com/en-us/help/281884/the-process-object-in-performance-monitor-can-display-process-ids-pids
+	/// </summary>
+	static class PerfProcRegistryMod
+	{
+		private static object ModLock = new object();
+		private static bool ModDone = false;
+		/// <summary>
+		/// Sets the DWORD value "ProcessNameFormat" to 2 in "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\PerfProc\Performance".  This method is designed to be efficient if called multiple times, only performing work if necessary.
+		/// </summary>
+		public static void DoMod()
+		{
+			if (!ModDone)
+				lock (ModLock)
+				{
+					if (!ModDone)
+					{
+						ModDone = ReadModState();
+						if (!ModDone)
+							if (ApplyModState(true))
+								ModDone = true;
+					}
+				}
+		}
+		/// <summary>
+		/// Sets the DWORD value "ProcessNameFormat" to 1 in "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\PerfProc\Performance".  This method is designed to be efficient if called multiple times, only performing work if necessary.
+		/// </summary>
+		public static void UndoMod()
+		{
+			lock (ModLock)
+			{
+				ModDone = ReadModState();
+				if (ModDone)
+					if (ApplyModState(false))
+						ModDone = false;
+			}
+		}
+
+		private static bool ReadModState()
+		{
+			RegistryKey Performance = RegistryUtil.GetHKLMKey(@"SYSTEM\CurrentControlSet\Services\PerfProc\Performance");
+			if (Performance == null)
+				return false;
+			if (!Performance.GetValueNames().Contains("ProcessNameFormat") || Performance.GetValueKind("ProcessNameFormat") != RegistryValueKind.DWord)
+				return false;
+			int ProcessNameFormat = (int)Performance.GetValue("ProcessNameFormat");
+			return ProcessNameFormat == 2;
+		}
+
+		private static bool ApplyModState(bool enablePIDData)
+		{
+			RegistryKey Performance = RegistryUtil.HKLM.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\PerfProc\Performance", true);
+			if (Performance == null)
+				return false;
+			Performance.SetValue("ProcessNameFormat", enablePIDData ? 2 : 1, RegistryValueKind.DWord);
+			return true;
 		}
 	}
 }

@@ -38,7 +38,7 @@ namespace WindowsServerMonitor
 			{
 				Stop();
 				monitorThread = new Thread(monitorRunner);
-				monitorThread.Name = "PerfMonManager " + spec.categoryName + ": " + spec.counterName + " (" + spec.instanceName + ")";
+				monitorThread.Name = "PerfMonManager " + spec.GetLabel();
 				monitorThread.IsBackground = true;
 				monitorThread.Start();
 			}
@@ -63,8 +63,20 @@ namespace WindowsServerMonitor
 		{
 			try
 			{
-				int checkInstanceNameCounter = 0;
 				int intervalMs = spec.GetIntervalMs();
+				//lock (this)
+				//{
+				//	DateTime now = DateTime.Now;
+				//	DateTime date = now.AddMilliseconds(-1 * maxAge);
+				//	while (date < now)
+				//	{
+				//		PerfMonValue pmv = MakeFakeValue(date);
+				//		values.AddFirst(pmv);
+				//		while (values.Last.Value.Time < pmv.Time - maxAge)
+				//			values.RemoveLast();
+				//		date = date.AddMilliseconds(intervalMs);
+				//	}
+				//}
 				while (true)
 				{
 					try
@@ -82,11 +94,9 @@ namespace WindowsServerMonitor
 							Thread.Sleep(intervalMs);
 							while (true)
 							{
-								if (spec.processFinder != null && ++checkInstanceNameCounter % 15 == 0 && spec.GetInstanceName() != counter.InstanceName)
-									break; // Breaking here will cause the PerformanceCounter to be reinitialized.  This will catch process restarts.
 								PerfMonValue pmv = new PerfMonValue();
-								pmv.Time = (TimeUtil.GetTimeInMsSinceEpoch() / 100) * 100; // Round off to in 100ms interals so the graph tooltip works a little better.
 								pmv.Value = counter.NextValue();
+								pmv.Time = TimeUtil.GetTimeInMsSinceEpoch();
 
 								lock (this)
 								{
@@ -105,6 +115,7 @@ namespace WindowsServerMonitor
 					catch (Exception ex)
 					{
 						Error = "Data collection error for monitor \"" + spec.GetLabel() + "\": " + ex.ToString();
+						Thread.Sleep(Math.Max(intervalMs, 10000));
 					}
 				}
 			}
@@ -116,6 +127,12 @@ namespace WindowsServerMonitor
 			}
 			Error = "Data collection has ended.";
 		}
+
+		private PerfMonValue MakeFakeValue(DateTime date)
+		{
+			return new PerfMonValue() { Time = TimeUtil.GetTimeInMsSinceEpoch(date), Value = StaticRandom.Next(0, 100) };
+		}
+
 		/// <summary>
 		/// Returns all records.
 		/// </summary>

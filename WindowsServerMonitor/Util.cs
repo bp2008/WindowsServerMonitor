@@ -34,8 +34,7 @@ namespace WindowsServerMonitor
 					}
 				}
 			}
-			throw new Exception("Could not find performance counter " +
-				"instance name for current process. This is truly strange ...");
+			throw new Exception("Could not find performance counter instance name for process " + process.ProcessName + " (PID: " + process.Id + ")");
 		}
 	}
 }

@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Data;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime;
 using System.ServiceProcess;
 using System.Text;
 using System.Threading.Tasks;
@@ -21,7 +22,7 @@ namespace WindowsServerMonitor
 		protected override void OnStart(string[] args)
 		{
 			server = new WebServer();
-			server.Start();
+			server.SetBindings(WebServer.settings.webPort, WebServer.settings.webPort);
 		}
 
 		protected override void OnStop()

@@ -26,7 +26,7 @@ namespace WindowsServerMonitor
 			settings.SaveIfNoExist(SettingsPath);
 			SimpleHttpLogger.RegisterLogger(Logger.httpLogger, false);
 		}
-		public WebServer() : base(settings.webPort)
+		public WebServer() : base()
 		{
 			lock (managersLock)
 			{
@@ -40,20 +40,18 @@ namespace WindowsServerMonitor
 		}
 		public override void handleGETRequest(HttpProcessor p)
 		{
-			string pageLower = p.requestedPage.ToLower();
+			string pageLower = p.Request.Page.ToLower();
 			if (pageLower.StartsWith("api/"))
 			{
-				p.writeFailure("405 Method Not Allowed");
+				p.Response.Simple("405 Method Not Allowed");
 			}
-			else if (p.requestedPage == "")
+			else if (p.Request.Page == "")
 			{
-				p.writeRedirect("default.html");
+				p.Response.Redirect("default.html");
 			}
-			else if (p.requestedPage == "TEST")
+			else if (p.Request.Page == "TEST")
 			{
-				StringBuilder sb = new StringBuilder();
-				p.writeSuccess("text/plain");
-				p.outputStream.Write(string.Join(", ", Process.GetProcessesByName("svchost").Select(i => ProcessHelper.GetUserWhichOwnsProcess(i.Id))));
+				p.Response.Simple("text/plain", string.Join(", ", Process.GetProcessesByName("svchost").Select(i => ProcessHelper.GetUserWhichOwnsProcess(i.Id))));
 			}
 			else
 			{
@@ -64,11 +62,11 @@ namespace WindowsServerMonitor
 #endif
 				DirectoryInfo WWWDirectory = new DirectoryInfo(wwwPath);
 				string wwwDirectoryBase = WWWDirectory.FullName.Replace('\\', '/').TrimEnd('/') + '/';
-				FileInfo fi = new FileInfo(wwwDirectoryBase + p.requestedPage);
+				FileInfo fi = new FileInfo(wwwDirectoryBase + p.Request.Page);
 				string targetFilePath = fi.FullName.Replace('\\', '/');
 				if (!targetFilePath.StartsWith(wwwDirectoryBase) || targetFilePath.Contains("../"))
 				{
-					p.writeFailure("400 Bad Request");
+					p.Response.Simple("400 Bad Request");
 					return;
 				}
 				if (!fi.Exists)
@@ -80,32 +78,16 @@ namespace WindowsServerMonitor
 					html = html.Replace("%%RND%%", rnd.ToString());
 
 					byte[] data = Encoding.UTF8.GetBytes(html);
-					if (!p.GetBoolParam("nocompress"))
-						p.CompressResponseIfCompatible();
-					p.writeSuccess(Mime.GetMimeType(fi.Extension));
-					p.outputStream.Flush();
-					p.tcpStream.Write(data, 0, data.Length);
-					p.tcpStream.Flush();
+					p.Response.FullResponseBytes(data, Mime.GetMimeType(fi.Extension));
+					if (!p.Request.GetBoolParam("nocompress"))
+						p.Response.CompressResponseIfCompatible();
 				}
 				else
 				{
 					string mime = Mime.GetMimeType(fi.Extension);
 					if (pageLower.StartsWith(".well-known/acme-challenge/"))
 						mime = "text/plain";
-					if (fi.LastWriteTimeUtc.ToString("R") == p.GetHeaderValue("if-modified-since"))
-					{
-						p.writeSuccess(mime, -1, "304 Not Modified");
-						return;
-					}
-					if (!p.GetBoolParam("nocompress"))
-						p.CompressResponseIfCompatible();
-					p.writeSuccess(mime, additionalHeaders: GetCacheLastModifiedHeaders(TimeSpan.FromHours(1), fi.LastWriteTimeUtc));
-					p.outputStream.Flush();
-					using (FileStream fs = fi.OpenRead())
-					{
-						fs.CopyTo(p.tcpStream);
-					}
-					p.tcpStream.Flush();
+					p.Response.StaticFile(fi);
 				}
 			}
 		}
@@ -118,13 +100,13 @@ namespace WindowsServerMonitor
 			return additionalHeaders;
 		}
 
-		public override void handlePOSTRequest(HttpProcessor p, StreamReader inputData)
+		public override void handlePOSTRequest(HttpProcessor p)
 		{
-			string pageLower = p.requestedPage.ToLower();
+			string pageLower = p.Request.Page.ToLower();
 			if (pageLower.StartsWith("api/"))
 			{
 				JSAPI.APIResponse apiResponse = null;
-				string cmd = p.requestedPage.Substring("api/".Length);
+				string cmd = p.Request.Page.Substring("api/".Length);
 				if (cmd.StartsWith("PerformanceCounterCategoryDetails/"))
 				{
 					string name = Uri.UnescapeDataString(cmd.Substring("PerformanceCounterCategoryDetails/".Length));
@@ -150,7 +132,7 @@ namespace WindowsServerMonitor
 								{
 									response.collections = new List<PerfMonValueCollection>(managers.Length);
 
-									long time = p.GetLongParam("time");
+									long time = p.Request.GetLongParam("time");
 									for (int i = 0; i < managers.Length; i++)
 										response.collections.Add(new PerfMonValueCollection(managers[i], time));
 								}
@@ -177,12 +159,11 @@ namespace WindowsServerMonitor
 
 					}
 				}
-				if (!p.GetBoolParam("nocompress"))
-					p.CompressResponseIfCompatible();
-				p.writeSuccess("application/json");
 				if (apiResponse == null)
 					apiResponse = new JSAPI.APIResponse("Response was null, so this response was generated instead.");
-				p.outputStream.Write(JsonConvert.SerializeObject(apiResponse));
+				p.Response.FullResponseUTF8(JsonConvert.SerializeObject(apiResponse), "application/json");
+				if (!p.Request.GetBoolParam("nocompress"))
+					p.Response.CompressResponseIfCompatible();
 			}
 		}
 
